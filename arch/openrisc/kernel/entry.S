@@ -858,8 +858,8 @@ _work_pending:
 	 * if (current_thread_info->flags & _TIF_NEED_RESCHED)
 	 *     schedule();
 	 */
-	l.lwz   r5,TI_FLAGS(r10)
-	l.andi	r3,r5,_TIF_NEED_RESCHED
+	l.lwz   r4,TI_FLAGS(r10)
+	l.andi	r3,r4,_TIF_NEED_RESCHED
 	l.sfnei r3,0
 	l.bnf   _work_notifysig
 	 l.nop
@@ -874,6 +874,7 @@ _work_pending:
  * must be set so that the syscall restart functionality works.
  */
 _work_notifysig:
+	ENABLE_INTERRUPTS(r29)
 	l.jal	do_notify_resume
 	 l.ori	r3,r1,0		  /* pt_regs */
 
