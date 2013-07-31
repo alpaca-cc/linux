@@ -77,7 +77,7 @@ static void or1k_pic_ack(struct irq_data *data)
 
 	mtspr(SPR_PICSR, mfspr(SPR_PICSR) & ~(1UL << data->hwirq));
 #else
-	WARN(1, "Interrupt handling possibly broken\n");
+//	WARN(1, "Interrupt handling possibly broken\n");
 	mtspr(SPR_PICSR, (1UL << data->hwirq));
 #endif
 }
@@ -90,7 +90,7 @@ static void or1k_pic_mask_ack(struct irq_data *data)
 	mtspr(SPR_PICMR, mfspr(SPR_PICMR) & ~(1UL << data->hwirq));
 	mtspr(SPR_PICSR, mfspr(SPR_PICSR) & ~(1UL << data->hwirq));
 #else
-	WARN(1, "Interrupt handling possibly broken\n");
+//	WARN(1, "Interrupt handling possibly broken\n");
 	mtspr(SPR_PICMR, (1UL << data->hwirq));
 	mtspr(SPR_PICSR, (1UL << data->hwirq));
 #endif
