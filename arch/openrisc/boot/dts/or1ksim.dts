@@ -7,10 +7,14 @@
 
 	chosen {
 		bootargs = "console=uart,mmio,0x90000000,115200";
+/*		bootargs = "console=ttyS0,115200";*/
+/*		bootargs = "console=uart,mmio,0x90000000,115200 root=/dev/nfs rw nfsroot=192.168.255.100:/home/stefan/openrisc/nfsroot,rw,nolock ip=192.168.255.111:::::: nfsrootdebug";*/
+/*		bootargs = "console=uart,mmio,0x90000000,115200 root=/dev/nfs nfsroot=192.168.255.100:/home/stefan/openrisc/nfsroot,nolock ip=dhcp rootwait rw nfsrootdebug debug";*/
 	};
 
 	memory@0 {
 		device_type = "memory";
+/*		reg = <0x00000000 0x02000000>;*/
 		reg = <0x00000000 0x02000000>;
 	};
 
@@ -20,7 +24,7 @@
 		cpu@0 {
 			compatible = "opencores,or1200-rtlsvn481";
 			reg = <0>;
-			clock-frequency = <20000000>;
+			clock-frequency = <50000000>;
 		};
 	};
 
@@ -39,7 +43,7 @@
 		compatible = "opencores,uart16550-rtlsvn105", "ns16550a";
 		reg = <0x90000000 0x100>;
 		interrupts = <2>;
-		clock-frequency = <20000000>;
+		clock-frequency = <50000000>;
 	};
 
 	enet0: ethoc@92000000 {
@@ -47,4 +51,15 @@
 		reg = <0x92000000 0x100>;
 		interrupts = <4>;
 	};
+/*
+        ata@9e000000  {
+                compatible = "ata-generic";
+                reg = <0x9e000040 0x30
+                       0x9e000078 0x10>;
+                pio-mode = <4>;
+                reg-shift = <2>;
+                interrupts = <15>;
+        };
+*/
+
 };
