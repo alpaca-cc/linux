@@ -68,7 +68,12 @@ choice
 config OR1K_1200
 	bool "OR1200"
 	help
-	  Generic OpenRISC 1200 architecture
+	  OpenRISC 1200 implementation
+
+config OR1K_GENERIC
+	bool "Generic OR1K"
+	help
+	  Generic OpenRISC 1000 architecture implementation
 
 endchoice
 
