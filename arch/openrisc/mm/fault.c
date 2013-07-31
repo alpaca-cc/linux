@@ -23,9 +23,15 @@
 #include <asm/uaccess.h>
 #include <asm/siginfo.h>
 #include <asm/signal.h>
+#include <asm/spr_defs.h>
 
-#define NUM_TLB_ENTRIES 64
-#define TLB_OFFSET(add) (((add) >> PAGE_SHIFT) & (NUM_TLB_ENTRIES-1))
+#define NUM_DTLB_SETS (1 << ((mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTS) >> \
+			    SPR_DMMUCFGR_NTS_OFF))
+#define NUM_ITLB_SETS (1 << ((mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTS) >> \
+			    SPR_IMMUCFGR_NTS_OFF))
+
+#define NUM_DTLB_WAYS (1 + (mfspr(SPR_DMMUCFGR) & SPR_DMMUCFGR_NTW))
+#define NUM_ITLB_WAYS (1 + (mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTW))
 
 unsigned long pte_misses;	/* updated by do_page_fault() */
 unsigned long pte_errors;	/* updated by do_page_fault() */
@@ -36,6 +42,31 @@ unsigned long pte_errors;	/* updated by do_page_fault() */
 volatile pgd_t *current_pgd;
 
 extern void die(char *, struct pt_regs *, long);
+
+/*
+ * Peeks into the tlbs associated with 'address'.
+ * Return 1 on miss and 0 on hit.
+ */
+static int tlb_miss(ulong address, ulong vector)
+{
+	int i;
+	ulong mr;
+	ulong vpn = address >> PAGE_SHIFT;
+	ulong num_tlb_ways = (vector == 0x300) ? NUM_DTLB_WAYS : NUM_ITLB_WAYS;
+	ulong num_tlb_sets = (vector == 0x300) ? NUM_DTLB_SETS : NUM_ITLB_SETS;
+	ulong offset = vpn & num_tlb_sets;
+
+	for (i = 0; i < num_tlb_ways; i++) {
+		mr = (vector == 0x300) ?
+			mfspr_off(SPR_DTLBMR_BASE(0), offset + i*256) :
+			mfspr_off(SPR_ITLBMR_BASE(0), offset + i*256);
+
+			if (vpn == mr >> PAGE_SHIFT)
+				return 0;
+	}
+
+	return 1;
+}
 
 /*
  * This routine handles page faults.  It determines the address,
@@ -75,11 +106,12 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long address,
 	 *
 	 * This verifies that the fault happens in kernel space
 	 * and that the fault was not a protection error.
+	 * TLB misses are always handled before protection errors,
+	 * so protection errors can only happen on TLB hits.
 	 */
 
-	if (address >= VMALLOC_START &&
-	    (vector != 0x300 && vector != 0x400) &&
-	    !user_mode(regs))
+	if (address >= VMALLOC_START && !user_mode(regs) &&
+	    tlb_miss(address, vector))
 		goto vmalloc_fault;
 
 	/* If exceptions were enabled, we can reenable them here */
