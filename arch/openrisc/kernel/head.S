@@ -546,7 +546,6 @@ enable_mmu:
 	 */
 	l.movhi	r30,0
 	l.mtspr	r0,r30,SPR_DMMUCR
-	l.movhi	r30,0
 	l.mtspr	r0,r30,SPR_IMMUCR
 
 	/*
@@ -979,14 +978,13 @@ exit_with_no_itranslation:
  *   needs to use physical addressing
  *
  */
-
+#define _PAGE_PRESENT 0x0400
 	.text
 ENTRY(dtlb_miss_handler)
 	EXCEPTION_STORE_GPR2
 	EXCEPTION_STORE_GPR3
 	EXCEPTION_STORE_GPR4
 	EXCEPTION_STORE_GPR5
-	EXCEPTION_STORE_GPR6
 	/*
 	 * get EA of the miss
 	 */
@@ -1006,17 +1004,8 @@ ENTRY(dtlb_miss_handler)
 	l.lwz	r3,0x0(r4)		// get *pmd value
 	l.sfne	r3,r0
 	l.bnf	d_pmd_none
-	 l.andi	r3,r3,~PAGE_MASK //0x1fff		// ~PAGE_MASK
-	/*
-	 * if (pmd_bad(*pmd))
-	 *   pmd_clear(pmd)
-	 *   goto pmd_bad:
-	 */
-//	l.sfeq	r3,r0			// check *pmd value
-//	l.bf	d_pmd_good
-	l.addi	r3,r0,0xffffe000	// PAGE_MASK
-//	l.j	d_pmd_bad
-//	l.sw	0x0(r4),r0		// clear pmd
+	 l.addi	r3,r0,0xffffe000	// PAGE_MASK
+
 d_pmd_good:
 	/*
 	 * pte = *pte_offset(pmd, daddr);
@@ -1031,22 +1020,39 @@ d_pmd_good:
 	/*
 	 * if (!pte_present(pte))
 	 */
-	l.andi	r4,r2,0x1
+	l.andi	r4,r2,_PAGE_PRESENT
 	l.sfne	r4,r0			// is pte present
 	l.bnf	d_pte_not_present
-	l.addi	r3,r0,0xffffe3fa	// PAGE_MASK | DTLB_UP_CONVERT_MASK
+	 l.ori	r3,r0,0xf351		/* sw emulation of dmmupr */
 	/*
 	 * fill DTLB TR register
 	 */
-	l.and	r4,r2,r3		// apply the mask
+	l.srli	r4,r2,4			/* get PP Index * 4 */
+	l.andi	r4,r4,0xc		/* mask everything but PPI (without X) (& 0b01100)*/
+	l.srl	r3,r3,r4		/* get protection bits from "dmmupr" */
+	/*
+	 * The protection bits are unconvienently the "wrong" way in DMMUPR
+	 * compared to DTLBR (UWE|URE|SWE|SRE vs SWE|SRE|UWE|URE), so we have
+	 * to swap their places...
+	 */
+	l.andi	r4,r3,0x3		/* SWE|SRE */
+	l.slli	r4,r4,8			/* 1:0 -> 9:8 */
+	l.andi	r3,r3,0xc		/* UWE|URE */
+	l.slli	r3,r3,4			/* 3:2 -> 7:6 */
+	l.or	r3,r3,r4
+
+	l.addi	r4,r0,0xffffe03f	/* protection bit mask */
+	l.and	r4,r2,r4		/* apply the mask */
+	l.or	r4,r4,r3		/* apply protection bits */
+
 	// Determine number of DMMU sets
-	l.mfspr r6, r0, SPR_DMMUCFGR
-	l.andi	r6, r6, SPR_DMMUCFGR_NTS
-	l.srli	r6, r6, SPR_DMMUCFGR_NTS_OFF
+	l.mfspr r2, r0, SPR_DMMUCFGR
+	l.andi	r2, r2, SPR_DMMUCFGR_NTS
+	l.srli	r2, r2, SPR_DMMUCFGR_NTS_OFF
 	l.ori	r3, r0, 0x1
-	l.sll	r3, r3, r6 	// r3 = number DMMU sets DMMUCFGR
-	l.addi	r6, r3, -1  	// r6 = nsets mask
-	l.and	r5, r5, r6	// calc offset:	 & (NUM_TLB_ENTRIES-1)
+	l.sll	r3, r3, r2 	// r3 = number DMMU sets DMMUCFGR
+	l.addi	r2, r3, -1  	// r6 = nsets mask
+	l.and	r5, r5, r2	// calc offset:	 & (NUM_TLB_ENTRIES-1)
 	                                                   //NUM_TLB_ENTRIES
 	l.mtspr	r5,r4,SPR_DTLBTR_BASE(0)
 	/*
@@ -1062,15 +1068,6 @@ d_pmd_good:
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
 	EXCEPTION_LOAD_GPR5
-	EXCEPTION_LOAD_GPR6
-	l.rfe
-d_pmd_bad:
-	l.nop	1
-	EXCEPTION_LOAD_GPR2
-	EXCEPTION_LOAD_GPR3
-	EXCEPTION_LOAD_GPR4
-	EXCEPTION_LOAD_GPR5
-	EXCEPTION_LOAD_GPR6
 	l.rfe
 d_pmd_none:
 d_pte_not_present:
@@ -1078,7 +1075,6 @@ d_pte_not_present:
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
 	EXCEPTION_LOAD_GPR5
-	EXCEPTION_LOAD_GPR6
 	EXCEPTION_HANDLE(_data_page_fault_handler)
 
 /* ==============================================[ ITLB miss handler ]=== */
@@ -1087,7 +1083,6 @@ ENTRY(itlb_miss_handler)
 	EXCEPTION_STORE_GPR3
 	EXCEPTION_STORE_GPR4
 	EXCEPTION_STORE_GPR5
-	EXCEPTION_STORE_GPR6
 	/*
 	 * get EA of the miss
 	 */
@@ -1109,18 +1104,7 @@ ENTRY(itlb_miss_handler)
 	l.lwz	r3,0x0(r4)		// get *pmd value
 	l.sfne	r3,r0
 	l.bnf	i_pmd_none
-	l.andi	r3,r3,0x1fff		// ~PAGE_MASK
-	/*
-	 * if (pmd_bad(*pmd))
-	 *   pmd_clear(pmd)
-	 *   goto pmd_bad:
-	 */
-
-//	l.sfeq	r3,r0			// check *pmd value
-//	l.bf	i_pmd_good
 	l.addi	r3,r0,0xffffe000	// PAGE_MASK
-//	l.j	i_pmd_bad
-//	l.sw	0x0(r4),r0		// clear pmd
 
 i_pmd_good:
 	/*
@@ -1138,37 +1122,31 @@ i_pmd_good:
 	 * if (!pte_present(pte))
 	 *
 	 */
-	l.andi	r4,r2,0x1
+	l.andi	r4,r2,_PAGE_PRESENT
 	l.sfne	r4,r0			// is pte present
 	l.bnf	i_pte_not_present
-	l.addi	r3,r0,0xffffe03a	// PAGE_MASK | ITLB_UP_CONVERT_MASK
+	 l.ori	r3,r0,0xd00		/* sw emulation of immupr */
 	/*
 	 * fill ITLB TR register
 	 */
-	l.and	r4,r2,r3		// apply the mask
-	l.andi	r3,r2,0x7c0		// _PAGE_EXEC | _PAGE_SRE | _PAGE_SWE |  _PAGE_URE | _PAGE_UWE
-//	l.andi	r3,r2,0x400		// _PAGE_EXEC
-	l.sfeq	r3,r0
-	l.bf	itlb_tr_fill //_workaround
+	l.srli	r4,r2,5			/* get PP Index * 2 */
+	l.andi	r4,r4,0xa		/* mask everything but PPI (without W) (& 0b1010)*/
+	l.srl	r3,r3,r4		/* get protection bits from "immupr" */
+	l.andi	r3,r3,0x3		/* mask everything else out */
+	l.slli	r3,r3,6			/* and put them in their spot */
+	l.addi	r4,r0,0xffffe03f	/* protection bit mask */
+	l.and	r4,r2,r4		/* apply the mask */
+	l.or	r4,r4,r3		/* apply protection bits */
+
 	// Determine number of IMMU sets
-	l.mfspr r6, r0, SPR_IMMUCFGR
-	l.andi	r6, r6, SPR_IMMUCFGR_NTS
-	l.srli	r6, r6, SPR_IMMUCFGR_NTS_OFF
+	l.mfspr r2, r0, SPR_IMMUCFGR
+	l.andi	r2, r2, SPR_IMMUCFGR_NTS
+	l.srli	r2, r2, SPR_IMMUCFGR_NTS_OFF
 	l.ori	r3, r0, 0x1
-	l.sll	r3, r3, r6 	// r3 = number IMMU sets IMMUCFGR
-	l.addi	r6, r3, -1  	// r6 = nsets mask
-	l.and	r5, r5, r6	// calc offset:	 & (NUM_TLB_ENTRIES-1)
+	l.sll	r3, r3, r2 	// r3 = number IMMU sets IMMUCFGR
+	l.addi	r2, r3, -1  	// r2 = nsets mask
+	l.and	r5, r5, r2	// calc offset:	 & (NUM_TLB_ENTRIES-1)
 
-/*
- * __PHX__ :: fixme
- * we should not just blindly set executable flags,
- * but it does help with ping. the clean way would be to find out
- * (and fix it) why stack doesn't have execution permissions
- */
-
-itlb_tr_fill_workaround:
-	l.ori	r4,r4,0xc0		// | (SPR_ITLBTR_UXE | ITLBTR_SXE)
-itlb_tr_fill:
 	l.mtspr	r5,r4,SPR_ITLBTR_BASE(0)
 	/*
 	 * fill DTLB MR register
@@ -1183,24 +1161,14 @@ itlb_tr_fill:
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
 	EXCEPTION_LOAD_GPR5
-	EXCEPTION_LOAD_GPR6
 	l.rfe
 
-i_pmd_bad:
-	l.nop	1
-	EXCEPTION_LOAD_GPR2
-	EXCEPTION_LOAD_GPR3
-	EXCEPTION_LOAD_GPR4
-	EXCEPTION_LOAD_GPR5
-	EXCEPTION_LOAD_GPR6
-	l.rfe
 i_pmd_none:
 i_pte_not_present:
 	EXCEPTION_LOAD_GPR2
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
 	EXCEPTION_LOAD_GPR5
-	EXCEPTION_LOAD_GPR6
 	EXCEPTION_HANDLE(_insn_page_fault_handler)
 
 /* ==============================================[ boot tlb handlers ]=== */

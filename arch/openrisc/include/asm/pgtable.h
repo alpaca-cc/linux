@@ -122,21 +122,22 @@ extern void paging_init(void);
  * PTE as per above
  */
 
-#define _PAGE_CC       0x001 /* software: pte contains a translation */
-#define _PAGE_CI       0x002 /* cache inhibit          */
-#define _PAGE_WBC      0x004 /* write back cache       */
-#define _PAGE_FILE     0x004 /* set: pagecache, unset: swap (when !PRESENT) */
-#define _PAGE_WOM      0x008 /* weakly ordered memory  */
+#define _PAGE_CC       0x0001 /* cache coherency        */
+#define _PAGE_CI       0x0002 /* cache inhibit          */
+#define _PAGE_WBC      0x0004 /* write back cache       */
+#define _PAGE_WOM      0x0008 /* weakly ordered memory  */
 
-#define _PAGE_A        0x010 /* accessed               */
-#define _PAGE_D        0x020 /* dirty                  */
-#define _PAGE_URE      0x040 /* user read enable       */
-#define _PAGE_UWE      0x080 /* user write enable      */
+#define _PAGE_A        0x0010 /* accessed               */
+#define _PAGE_D        0x0020 /* dirty                  */
+#define _PAGE_USER     0x0040 /* user                   */
+#define _PAGE_WRITE    0x0080 /* write                  */
 
-#define _PAGE_SRE      0x100 /* superuser read enable  */
-#define _PAGE_SWE      0x200 /* superuser write enable */
-#define _PAGE_EXEC     0x400 /* software: page is executable */
-#define _PAGE_U_SHARED 0x800 /* software: page is shared in user space */
+#define _PAGE_EXEC     0x0100 /* execute                */
+#define _PAGE_L        0x0200 /* last                   */
+#define _PAGE_PRESENT  0x0400 /* software: pte contains a translation */
+#define _PAGE_U_SHARED 0x0800 /* software: page is shared in user space */
+
+#define _PAGE_FILE     0x1000 /* set: pagecache, unset: swap (when !PRESENT) */
 
 /* 0x001 is cache coherency bit, which should always be set to
  *       1 - for SMP (when we support it)
@@ -145,42 +146,40 @@ extern void paging_init(void);
  * we just reuse this bit in software for _PAGE_PRESENT and
  * force it to 0 when loading it into TLB.
  */
-#define _PAGE_PRESENT  _PAGE_CC
-#define _PAGE_USER     _PAGE_URE
-#define _PAGE_WRITE    (_PAGE_UWE | _PAGE_SWE)
+//#define _PAGE_PRESENT  _PAGE_CC
+//#define _PAGE_USER     _PAGE_URE
+//#define _PAGE_WRITE    (_PAGE_UWE | _PAGE_SWE)
 #define _PAGE_DIRTY    _PAGE_D
 #define _PAGE_ACCESSED _PAGE_A
 #define _PAGE_NO_CACHE _PAGE_CI
 #define _PAGE_SHARED   _PAGE_U_SHARED
-#define _PAGE_READ     (_PAGE_URE | _PAGE_SRE)
+#define _PAGE_READ     _PAGE_USER
 
 #define _PAGE_CHG_MASK	(PAGE_MASK | _PAGE_ACCESSED | _PAGE_DIRTY)
 #define _PAGE_BASE     (_PAGE_PRESENT | _PAGE_ACCESSED)
 #define _PAGE_ALL      (_PAGE_PRESENT | _PAGE_ACCESSED)
 #define _KERNPG_TABLE \
-	(_PAGE_BASE | _PAGE_SRE | _PAGE_SWE | _PAGE_ACCESSED | _PAGE_DIRTY)
+	(_PAGE_BASE | _PAGE_WRITE | _PAGE_ACCESSED | _PAGE_DIRTY)
 
 #define PAGE_NONE       __pgprot(_PAGE_ALL)
-#define PAGE_READONLY   __pgprot(_PAGE_ALL | _PAGE_URE | _PAGE_SRE)
-#define PAGE_READONLY_X __pgprot(_PAGE_ALL | _PAGE_URE | _PAGE_SRE | _PAGE_EXEC)
+#define PAGE_READONLY   __pgprot(_PAGE_ALL | _PAGE_USER)
+#define PAGE_READONLY_X __pgprot(_PAGE_ALL | _PAGE_USER | _PAGE_EXEC)
 #define PAGE_SHARED \
-	__pgprot(_PAGE_ALL | _PAGE_URE | _PAGE_SRE | _PAGE_UWE | _PAGE_SWE \
-		 | _PAGE_SHARED)
+	__pgprot(_PAGE_ALL | _PAGE_USER | _PAGE_WRITE | _PAGE_SHARED)
 #define PAGE_SHARED_X \
-	__pgprot(_PAGE_ALL | _PAGE_URE | _PAGE_SRE | _PAGE_UWE | _PAGE_SWE \
-		 | _PAGE_SHARED | _PAGE_EXEC)
-#define PAGE_COPY       __pgprot(_PAGE_ALL | _PAGE_URE | _PAGE_SRE)
-#define PAGE_COPY_X     __pgprot(_PAGE_ALL | _PAGE_URE | _PAGE_SRE | _PAGE_EXEC)
+	__pgprot(_PAGE_ALL | _PAGE_USER | _PAGE_WRITE | _PAGE_SHARED | \
+		 _PAGE_EXEC)
+#define PAGE_COPY       __pgprot(_PAGE_ALL | _PAGE_USER)
+#define PAGE_COPY_X     __pgprot(_PAGE_ALL | _PAGE_USER | _PAGE_EXEC)
 
 #define PAGE_KERNEL \
-	__pgprot(_PAGE_ALL | _PAGE_SRE | _PAGE_SWE \
-		 | _PAGE_SHARED | _PAGE_DIRTY | _PAGE_EXEC)
+	__pgprot(_PAGE_ALL | _PAGE_WRITE  | _PAGE_SHARED | _PAGE_DIRTY | \
+		 _PAGE_EXEC)
 #define PAGE_KERNEL_RO \
-	__pgprot(_PAGE_ALL | _PAGE_SRE \
-		 | _PAGE_SHARED | _PAGE_DIRTY | _PAGE_EXEC)
+	__pgprot(_PAGE_ALL | _PAGE_SHARED | _PAGE_DIRTY | _PAGE_EXEC)
 #define PAGE_KERNEL_NOCACHE \
-	__pgprot(_PAGE_ALL | _PAGE_SRE | _PAGE_SWE \
-		 | _PAGE_SHARED | _PAGE_DIRTY | _PAGE_EXEC | _PAGE_CI)
+	__pgprot(_PAGE_ALL | _PAGE_WRITE | _PAGE_SHARED | _PAGE_DIRTY | \
+		 _PAGE_EXEC | _PAGE_CI)
 
 #define __P000	PAGE_NONE
 #define __P001	PAGE_READONLY_X
@@ -235,7 +234,7 @@ extern unsigned long empty_zero_page[2048];
  * Undefined behaviour if not..
  */
 
-static inline int pte_read(pte_t pte)  { return pte_val(pte) & _PAGE_READ; }
+static inline int pte_read(pte_t pte)  { return 1;/*pte_val(pte) & _PAGE_READ;*/ }
 static inline int pte_write(pte_t pte) { return pte_val(pte) & _PAGE_WRITE; }
 static inline int pte_exec(pte_t pte)  { return pte_val(pte) & _PAGE_EXEC; }
 static inline int pte_dirty(pte_t pte) { return pte_val(pte) & _PAGE_DIRTY; }
