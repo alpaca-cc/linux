@@ -302,6 +302,7 @@ asmlinkage void do_unaligned_access(struct pt_regs *regs, unsigned long address)
 	siginfo_t info;
 
 	if (user_mode(regs)) {
+		printk("SJK DEBUG: User unaligned Access 0x%.8lx\n", address);
 		/* Send a SIGSEGV */
 		info.si_signo = SIGSEGV;
 		info.si_errno = 0;

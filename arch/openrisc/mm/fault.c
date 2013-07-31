@@ -110,14 +110,18 @@ retry:
 	down_read(&mm->mmap_sem);
 	vma = find_vma(mm, address);
 
-	if (!vma)
+	if (!vma) {
+		printk("SJK DEBUG: !vma\n");
 		goto bad_area;
+	}
 
 	if (vma->vm_start <= address)
 		goto good_area;
 
-	if (!(vma->vm_flags & VM_GROWSDOWN))
+	if (!(vma->vm_flags & VM_GROWSDOWN)) {
+		printk("SJK DEBUG: !(vma->vm_flags & VM_GROWSDOWN)\n");
 		goto bad_area;
+	}
 
 	if (user_mode(regs)) {
 		/*
@@ -126,11 +130,16 @@ retry:
 		 * if we're within a page from usp, but that might be
 		 * enough to catch brutal errors at least.
 		 */
-		if (address + PAGE_SIZE < regs->sp)
+		if (address + PAGE_SIZE < regs->sp) {
+			printk("SJK DEBUG: address + PAGE_SIZE < regs->sp (regs->sp = %x)\n",
+				regs->sp);
 			goto bad_area;
+		}
 	}
-	if (expand_stack(vma, address))
+	if (expand_stack(vma, address))  {
+		printk("SJK DEBUG: expand_stack(vma, address)\n");
 		goto bad_area;
+	}
 
 	/*
 	 * Ok, we have a good vm_area for this memory access, so
@@ -143,18 +152,24 @@ good_area:
 	/* first do some preliminary protection checks */
 
 	if (write_acc) {
-		if (!(vma->vm_flags & VM_WRITE))
+		if (!(vma->vm_flags & VM_WRITE)) {
+			printk("SJK DEBUG: !(vma->vm_flags & VM_WRITE)\n");
 			goto bad_area;
+		}
 		flags |= FAULT_FLAG_WRITE;
 	} else {
 		/* not present */
-		if (!(vma->vm_flags & (VM_READ | VM_EXEC)))
+		if (!(vma->vm_flags & (VM_READ | VM_EXEC))) {
+			printk("SJK DEBUG: !(vma->vm_flags & (VM_READ | VM_EXEC))\n");
 			goto bad_area;
+		}
 	}
 
 	/* are we trying to execute nonexecutable area */
-	if ((vector == 0x400) && !(vma->vm_page_prot.pgprot & _PAGE_EXEC))
+	if ((vector == 0x400) && !(vma->vm_page_prot.pgprot & _PAGE_EXEC)) {
+		printk("SJK DEBUG: (vector == 0x400) && !(vma->vm_page_prot.pgprot & _PAGE_EXEC)\n");
 		goto bad_area;
+	}
 
 	/*
 	 * If for any reason at all we couldn't handle the fault,
@@ -203,6 +218,7 @@ good_area:
 	 */
 
 bad_area:
+	printk("SJK DEBUG: bad_area\n");
 	up_read(&mm->mmap_sem);
 
 bad_area_nosemaphore:
@@ -214,6 +230,9 @@ bad_area_nosemaphore:
 		info.si_errno = 0;
 		/* info.si_code has been set above */
 		info.si_addr = (void *)address;
+		printk("SJK DEBUG: bad_area_no_semaphore SIGSEGV, addr = %p, vector = %x\n",
+		       address, vector);
+//		die("SJK DEBUG", regs, write_acc);
 		force_sig_info(SIGSEGV, &info, tsk);
 		return;
 	}
@@ -316,6 +335,9 @@ vmalloc_fault:
 
 		phx_mmu("vmalloc_fault");
 */
+		printk("SJK DEBUG: vmalloc_fault, tlb_miss = %d\n",
+		       tlb_miss(address, vector));
+
 		pgd = (pgd_t *)current_pgd + offset;
 		pgd_k = init_mm.pgd + offset;
 
