@@ -252,7 +252,7 @@ long device_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	return 0;
 }
 
-static int __devinit scet_probe(struct platform_device *pdev)
+static int scet_probe(struct platform_device *pdev)
 {
 
 	int retval = 0;
@@ -295,7 +295,7 @@ out:
 	return retval;
 }
 
-static int __devexit scet_remove(struct platform_device *dev)
+static int scet_remove(struct platform_device *dev)
 {
 	/* Nothing to do...
 	 * 'devres' device management takes cares of freeing
