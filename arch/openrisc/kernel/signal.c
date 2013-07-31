@@ -97,6 +97,7 @@ asmlinkage long _sys_rt_sigreturn(struct pt_regs *regs)
 	return regs->gpr[11];
 
 badframe:
+	printk("SJK DEBUG: badframe SIGSEGV\n");
 	force_sig(SIGSEGV, current);
 	return 0;
 }
