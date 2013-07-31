@@ -226,19 +226,15 @@
  * Bit definitions for the Data MMU Control Register
  *
  */
-#define SPR_DMMUCR_P2S	   0x0000003e  /* Level 2 Page Size */
-#define SPR_DMMUCR_P1S	   0x000007c0  /* Level 1 Page Size */
-#define SPR_DMMUCR_VADDR_WIDTH	0x0000f800  /* Virtual ADDR Width */
-#define SPR_DMMUCR_PADDR_WIDTH	0x000f0000  /* Physical ADDR Width */
+#define SPR_DMMUCR_PTBP	   0xfffffc00  /* Page Table Base Pointer */
+#define SPR_DMMUCR_DTF	   0x00000001  /* DTLB Flush */
 
 /*
  * Bit definitions for the Instruction MMU Control Register
  *
  */
-#define SPR_IMMUCR_P2S	   0x0000003e  /* Level 2 Page Size */
-#define SPR_IMMUCR_P1S	   0x000007c0  /* Level 1 Page Size */
-#define SPR_IMMUCR_VADDR_WIDTH	0x0000f800  /* Virtual ADDR Width */
-#define SPR_IMMUCR_PADDR_WIDTH	0x000f0000  /* Physical ADDR Width */
+#define SPR_IMMUCR_PTBP	   0xfffffc00  /* Page Table Base Pointer */
+#define SPR_IMMUCR_ITF	   0x00000001  /* ITLB Flush */
 
 /*
  * Bit definitions for the Data TLB Match Register

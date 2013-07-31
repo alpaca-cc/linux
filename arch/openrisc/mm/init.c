@@ -192,6 +192,14 @@ void __init paging_init(void)
 	mtspr(SPR_ICBIR, 0x900);
 	mtspr(SPR_ICBIR, 0xa00);
 
+	/*
+	 * Update the pagetable base pointer, to enable hardware tlb refill if
+	 * supported by the hardware
+	 */
+	mtspr(SPR_IMMUCR, __pa(current_pgd) & SPR_IMMUCR_PTBP);
+	mtspr(SPR_DMMUCR, __pa(current_pgd) & SPR_DMMUCR_PTBP);
+
+
 	/* New TLB miss handlers and kernel page tables are in now place.
 	 * Make sure that page flags get updated for all pages in TLB by
 	 * flushing the TLB and forcing all TLB entries to be recreated

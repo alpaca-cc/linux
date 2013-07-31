@@ -151,6 +151,14 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	 */
 	current_pgd = next->pgd;
 
+	/*
+	 * Update the pagetable base pointer with the new pgd.
+	 * This only have effect on implementations with hardware tlb refill
+	 * support.
+	 */
+	mtspr(SPR_IMMUCR, __pa(current_pgd) & SPR_IMMUCR_PTBP);
+	mtspr(SPR_DMMUCR, __pa(current_pgd) & SPR_DMMUCR_PTBP);
+
 	/* We don't have context support implemented, so flush all
 	 * entries belonging to previous map
 	 */

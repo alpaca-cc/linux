@@ -541,6 +541,15 @@ flush_tlb:
 
 enable_mmu:
 	/*
+	 * Make sure the page table base pointer is cleared
+	 * ( = hardware tlb fill disabled)
+	 */
+	l.movhi	r30,0
+	l.mtspr	r0,r30,SPR_DMMUCR
+	l.movhi	r30,0
+	l.mtspr	r0,r30,SPR_IMMUCR
+
+	/*
 	 * enable dmmu & immu
 	 * SR[5] = 0, SR[6] = 0, 6th and 7th bit of SR set to 0
 	 */
