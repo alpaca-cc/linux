@@ -46,6 +46,8 @@
 
 #define EXCEPTION_SR  (SPR_SR_DME | SPR_SR_IME | SPR_SR_DCE | SPR_SR_ICE | SPR_SR_SM)
 #define SYSCALL_SR  (SPR_SR_DME | SPR_SR_IME | SPR_SR_DCE | SPR_SR_ICE | SPR_SR_IEE | SPR_SR_TEE | SPR_SR_SM)
+//#define EXCEPTION_SR  (SPR_SR_DME | SPR_SR_IME | SPR_SR_ICE | SPR_SR_SM)
+//#define SYSCALL_SR  (SPR_SR_DME | SPR_SR_IME | SPR_SR_ICE | SPR_SR_IEE | SPR_SR_TEE | SPR_SR_SM)
 
 /* ============================================[ tmp store locations ]=== */
 
@@ -260,6 +262,7 @@
 	/* save exception r4, set r4 = EA */			;\
 	l.sw	PT_GPR4(r30),r4					;\
 	l.mfspr r4,r0,SPR_EEAR_BASE				;\
+								;\
 	/* r12 == 1 if we come from syscall */			;\
 	CLEAR_GPR(r12)						;\
 	/* ----- turn on MMU ----- */				;\
@@ -555,6 +558,11 @@ _start:
 	l.sfeq	r25,r0
 	l.bnf	secondary_wait
 	 l.nop
+#else /*SJK DEBUG*/
+	l.mfspr	r25,r0,SPR_COREID
+	l.sfeq	r25,r0
+	l.bnf	.
+	 l.nop
 #endif
 	/*
 	 * set up initial ksp and current
@@ -693,16 +701,25 @@ _flush_tlb:
 	 */
 	LOAD_SYMBOL_2_GPR(r5,SPR_DTLBMR_BASE(0))
 	LOAD_SYMBOL_2_GPR(r6,SPR_ITLBMR_BASE(0))
-	l.addi	r7,r0,128 /* Maximum number of sets */
+	l.addi	r8,r0,1		/* Maximum number of ways - 1 */
 1:
+	l.addi	r7,r0,127	/* Maximum number of sets - 1 */
+2:
 	l.mtspr	r5,r0,0x0
 	l.mtspr	r6,r0,0x0
 
 	l.addi	r5,r5,1
 	l.addi	r6,r6,1
 	l.sfeq	r7,r0
-	l.bnf	1b
+	l.bnf	2b
 	 l.addi	r7,r7,-1
+
+	l.addi	r5,r5,0x80
+	l.addi	r6,r6,0x80
+
+	l.sfeq	r8,r0
+	l.bnf	1b
+	 l.addi	r8,r8,-1
 
 	l.jr	r9
 	 l.nop
@@ -885,7 +902,7 @@ _dc_enable:
 	/* Enable DC */
 	l.mfspr r6,r0,SPR_SR
 	l.ori   r6,r6,SPR_SR_DCE
-	l.mtspr r0,r6,SPR_SR
+	l.mtspr r0,r6,SPR_SR /*SJK*/
 9:
 	l.jr    r9
 	l.nop
@@ -1114,6 +1131,7 @@ ENTRY(dtlb_miss_handler)
 	EXCEPTION_STORE_GPR2
 	EXCEPTION_STORE_GPR3
 	EXCEPTION_STORE_GPR4
+	EXCEPTION_STORE_GPR5
 	/*
 	 * get EA of the miss
 	 */
@@ -1164,10 +1182,30 @@ d_pmd_good:
 	l.ori	r3, r0, 0x1
 	l.sll	r3, r3, r2 	// r3 = number DMMU sets DMMUCFGR
 	l.addi	r2, r3, -1  	// r2 = nsets mask
+
+	/*
+	 * Determine which way to replace.
+	 * Here we use a hack with the tick timer to get a 'random' value,
+	 * but instead, the LRU field should be used to determine which way to
+	 * replace.
+	 */
+	l.mfspr	r3, r0, SPR_DMMUCFGR
+	l.andi	r3, r3, SPR_DMMUCFGR_NTW
+	l.ori	r5, r0, 1
+	l.sll	r3, r5, r3
+	l.addi	r3, r3, -1
+
+	l.mfspr	r5, r0, SPR_TTCR
+	l.and	r5, r5, r3
+	l.slli	r5, r5, 8
+
+
 	l.mfspr	r3, r0, SPR_EEAR_BASE
 	l.srli	r3, r3, 0xd	// >> PAGE_SHIFT
 	l.and	r2, r3, r2	// calc offset:	 & (NUM_TLB_ENTRIES-1)
 	                                                   //NUM_TLB_ENTRIES
+	l.add	r2, r2, r5	/* + way */
+
 	l.mtspr	r2,r4,SPR_DTLBTR_BASE(0)
 	/*
 	 * fill DTLB MR register
@@ -1179,12 +1217,14 @@ d_pmd_good:
 	EXCEPTION_LOAD_GPR2
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
+	EXCEPTION_LOAD_GPR5
 	l.rfe
 d_pmd_none:
 d_pte_not_present:
 	EXCEPTION_LOAD_GPR2
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
+	EXCEPTION_LOAD_GPR5
 	EXCEPTION_HANDLE(_dtlb_miss_page_fault_handler)
 
 /* ==============================================[ ITLB miss handler ]=== */
@@ -1192,6 +1232,7 @@ ENTRY(itlb_miss_handler)
 	EXCEPTION_STORE_GPR2
 	EXCEPTION_STORE_GPR3
 	EXCEPTION_STORE_GPR4
+	EXCEPTION_STORE_GPR5
 	/*
 	 * get EA of the miss
 	 */
@@ -1249,9 +1290,27 @@ i_pmd_good:
 	l.ori	r3, r0, 0x1
 	l.sll	r3, r3, r2 	// r3 = number IMMU sets IMMUCFGR
 	l.addi	r2, r3, -1  	// r2 = nsets mask
+
+	/*
+	 * Determine which way to replace.
+	 * Here we use a hack with the tick timer to get a 'random' value,
+	 * but instead, the LRU field should be used to determine which way to
+	 * replace.
+	 */
+	l.mfspr	r3, r0, SPR_DMMUCFGR
+	l.andi	r3, r3, SPR_DMMUCFGR_NTW
+	l.ori	r5, r0, 1
+	l.sll	r3, r5, r3
+	l.addi	r3, r3, -1
+
+	l.mfspr	r5, r0, SPR_TTCR
+	l.and	r5, r5, r3
+	l.slli	r5, r5, 8
+
 	l.mfspr	r3, r0, SPR_EEAR_BASE
 	l.srli	r3, r3, 0xd	// >> PAGE_SHIFT
 	l.and	r2, r3, r2	// calc offset:	 & (NUM_TLB_ENTRIES-1)
+	l.add	r2, r2, r5	/* + way */
 
 /*
  * __PHX__ :: fixme
@@ -1274,6 +1333,7 @@ itlb_tr_fill:
 	EXCEPTION_LOAD_GPR2
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
+	EXCEPTION_LOAD_GPR5
 	l.rfe
 
 i_pmd_none:
@@ -1281,6 +1341,7 @@ i_pte_not_present:
 	EXCEPTION_LOAD_GPR2
 	EXCEPTION_LOAD_GPR3
 	EXCEPTION_LOAD_GPR4
+	EXCEPTION_LOAD_GPR5
 	EXCEPTION_HANDLE(_itlb_miss_page_fault_handler)
 
 /* ==============================================[ boot tlb handlers ]=== */

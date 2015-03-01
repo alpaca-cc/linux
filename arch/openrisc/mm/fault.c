@@ -76,7 +76,10 @@ asmlinkage void do_page_fault(struct pt_regs *regs, unsigned long address,
 	 * This verifies that the fault happens in kernel space
 	 * and that the fault was not a protection error.
 	 */
-
+/*
+	if (!address)
+		printk("SJK DEBUG: %s: !address\n", __func__);
+*/
 	if (address >= VMALLOC_START &&
 	    (vector != 0x300 && vector != 0x400) &&
 	    !user_mode(regs))
@@ -211,6 +214,11 @@ bad_area_nosemaphore:
 	/* User mode accesses just cause a SIGSEGV */
 
 	if (user_mode(regs)) {
+#if 1
+		printk("SJK DEBUG: %s: send sigsegv: address = %x, vector = %x, w = %d\n",
+		       __func__, address, vector, write_acc);
+		show_regs(regs);
+#endif
 		info.si_signo = SIGSEGV;
 		info.si_errno = 0;
 		/* info.si_code has been set above */
@@ -280,6 +288,8 @@ do_sigbus:
 	 * Send a sigbus, regardless of whether we were in kernel
 	 * or user mode.
 	 */
+	printk("SJK DEBUG: %s: send sigbus\n", __func__);
+	show_regs(regs);
 	info.si_signo = SIGBUS;
 	info.si_errno = 0;
 	info.si_code = BUS_ADRERR;

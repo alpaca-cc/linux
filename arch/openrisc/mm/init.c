@@ -91,9 +91,16 @@ static void __init map_ram(void)
 		p = (u32) region->base & PAGE_MASK;
 		e = p + (u32) region->size;
 
+		e = e > 0x3fffc000 ? 0x3fffc000 : e;
+
+//		end = (unsigned long)__va(max_low_pfn * PAGE_SIZE);
+
 		v = (u32) __va(p);
 		pge = pgd_offset_k(v);
-
+#if 0
+		printk("SJK DEBUG: %s: 1) v = %x, max_low_pfn * PAGE_SIZE = %x\n",
+		       __func__, v, (unsigned long)(max_low_pfn * PAGE_SIZE));
+#endif
 		while (p < e) {
 			int j;
 			pue = pud_offset(pge, v);
@@ -105,6 +112,10 @@ static void __init map_ram(void)
 				     __func__);
 			}
 
+#if 0
+			printk("SJK DEBUG: %s: 2) v = %x, p = %x, e = %x\n",
+			       __func__, v, p, e);
+#endif
 			/* Alloc one page for holding PTE's... */
 			pte = (pte_t *) alloc_bootmem_low_pages(PAGE_SIZE);
 			set_pmd(pme, __pmd(_KERNPG_TABLE + __pa(pte)));

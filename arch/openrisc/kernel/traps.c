@@ -304,6 +304,10 @@ asmlinkage void do_unaligned_access(struct pt_regs *regs, unsigned long address)
 	siginfo_t info;
 
 	if (user_mode(regs)) {
+#if 1
+		printk("USER: Unaligned Access 0x%.8lx\n", address);
+		show_registers(regs);
+#endif
 		/* Send a SIGSEGV */
 		info.si_signo = SIGSEGV;
 		info.si_errno = 0;
@@ -329,6 +333,10 @@ asmlinkage void do_bus_fault(struct pt_regs *regs, unsigned long address)
 		info.si_code = BUS_ADRERR;
 		info.si_addr = (void *)address;
 		force_sig_info(SIGBUS, &info, current);
+#if 1
+		printk("SJK DEBUG: Bus error (SIGBUS) 0x%.8lx\n", address);
+		show_registers(regs);
+#endif
 	} else {		/* Kernel mode */
 		printk("KERNEL: Bus error (SIGBUS) 0x%.8lx\n", address);
 		show_registers(regs);

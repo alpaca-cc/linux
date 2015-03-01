@@ -1,0 +1,5 @@
+config SND_SOC_WISHBONE_I2S
+	tristate "Wishbone-I2S support"
+	select SND_SOC_GENERIC_DMAENGINE_PCM
+	help
+	  ASoC driver for the Wishbone-I2S.

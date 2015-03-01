@@ -248,6 +248,7 @@ static inline void ethoc_write(struct ethoc *dev, loff_t offset, u32 data)
 #ifdef CONFIG_WISHBONE_BUS_BIG_ENDIAN
 	iowrite32be(data, dev->iobase + offset);
 #else
+#error "BIG endian not defined"
 	iowrite32(data, dev->iobase + offset);
 #endif
 }

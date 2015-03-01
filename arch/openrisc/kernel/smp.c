@@ -138,6 +138,10 @@ void handle_IPI(int ipinr)
 {
 	unsigned int cpu = smp_processor_id();
 
+#if 0
+	printk("SJK DEBUG: %s: ipinr = %d, cpu = %d\n", __func__, ipinr, cpu);
+#endif
+
 	switch (ipinr) {
 	case IPI_RESCHEDULE:
 		scheduler_ipi();

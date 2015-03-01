@@ -262,6 +262,8 @@ static inline int ssm2602_get_coeff(int mclk, int rate)
 {
 	int i;
 
+	printk("SJK DEBUG: %s: mclk = %d, rate = %d\n", __func__, mclk, rate);
+
 	for (i = 0; i < ARRAY_SIZE(ssm2602_coeff_table); i++) {
 		if (ssm2602_coeff_table[i].rate == rate &&
 			ssm2602_coeff_table[i].mclk == mclk)
@@ -282,6 +284,7 @@ static int ssm2602_hw_params(struct snd_pcm_substream *substream,
 	if (srate < 0)
 		return srate;
 
+	printk("SJK DEBUG: %s: srate = %x\n", __func__, srate);
 	regmap_write(ssm2602->regmap, SSM2602_SRATE, srate);
 
 	/* bit size */
@@ -301,6 +304,8 @@ static int ssm2602_hw_params(struct snd_pcm_substream *substream,
 	default:
 		return -EINVAL;
 	}
+
+	printk("SJK DEBUG: %s: iface = %x\n", __func__, iface);
 	regmap_update_bits(ssm2602->regmap, SSM2602_IFACE,
 		IFACE_AUDIO_DATA_LEN, iface);
 	return 0;
@@ -440,6 +445,8 @@ static int ssm2602_set_dai_fmt(struct snd_soc_dai *codec_dai,
 	default:
 		return -EINVAL;
 	}
+
+	printk("SJK DEBUG: %s: iface = %x\n", __func__, iface);
 
 	/* set iface */
 	regmap_write(ssm2602->regmap, SSM2602_IFACE, iface);

@@ -38,6 +38,8 @@
 			    SPR_DMMUCFGR_NTS_OFF))
 #define NUM_ITLB_SETS (1 << ((mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTS) >> \
 			    SPR_IMMUCFGR_NTS_OFF))
+#define NUM_DTLB_WAYS (1 << (mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTW))
+#define NUM_ITLB_WAYS (1 << (mfspr(SPR_IMMUCFGR) & SPR_IMMUCFGR_NTW))
 #define DTLB_OFFSET(addr) (((addr) >> PAGE_SHIFT) & (NUM_DTLB_SETS-1))
 #define ITLB_OFFSET(addr) (((addr) >> PAGE_SHIFT) & (NUM_ITLB_SETS-1))
 /*
@@ -53,14 +55,34 @@ void local_flush_tlb_all(void)
 {
 	int i;
 	unsigned long num_tlb_sets;
+	unsigned long num_itlb_ways;
+	unsigned long num_dtlb_ways;
 
 	/* Determine number of sets for IMMU. */
 	/* FIXME: Assumption is I & D nsets equal. */
 	num_tlb_sets = NUM_ITLB_SETS;
+	num_itlb_ways = NUM_ITLB_WAYS;
+	num_dtlb_ways = NUM_DTLB_WAYS;
+
+	static int first = 1;
+	if (first)
+		printk("SJK DEBUG: %s: num_tlb_sets = %d, num_dtlb_ways = %d, num_itlb_ways = %d\n",
+		       __FUNCTION__, num_tlb_sets, num_dtlb_ways, num_itlb_ways);
+	first = 0;
 
 	for (i = 0; i < num_tlb_sets; i++) {
-		mtspr_off(SPR_DTLBMR_BASE(0), i, 0);
-		mtspr_off(SPR_ITLBMR_BASE(0), i, 0);
+		switch (num_itlb_ways) {
+		case 4: mtspr_off(SPR_ITLBMR_BASE(3), i, 0);
+		case 3: mtspr_off(SPR_ITLBMR_BASE(2), i, 0);
+		case 2: mtspr_off(SPR_ITLBMR_BASE(1), i, 0);
+		case 1: mtspr_off(SPR_ITLBMR_BASE(0), i, 0);
+		}
+		switch (num_dtlb_ways) {
+		case 4: mtspr_off(SPR_DTLBMR_BASE(3), i, 0);
+		case 3: mtspr_off(SPR_DTLBMR_BASE(2), i, 0);
+		case 2: mtspr_off(SPR_DTLBMR_BASE(1), i, 0);
+		case 1: mtspr_off(SPR_DTLBMR_BASE(0), i, 0);
+		}
 	}
 }
 
@@ -149,6 +171,7 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 	 * might be invalid at points where we still need to derefer
 	 * the pgd.
 	 */
+	/* SJK TODO: cpumask_set_cpu(cpu, mm_cpumask(next)) ???*/
 	current_pgd[smp_processor_id()] = next->pgd;
 
 	/* We don't have context support implemented, so flush all

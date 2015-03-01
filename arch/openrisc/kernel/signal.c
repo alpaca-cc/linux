@@ -99,6 +99,7 @@ asmlinkage long _sys_rt_sigreturn(struct pt_regs *regs)
 	return regs->gpr[11];
 
 badframe:
+	WARN_ONCE(1, "SJK DEBUG: %s: send sigsegv\n", __func__);
 	force_sig(SIGSEGV, current);
 	return 0;
 }
@@ -229,7 +230,7 @@ handle_signal(struct ksignal *ksig, struct pt_regs *regs)
  * we can use user_mode(regs) to see if we came directly from kernel or user
  * mode below.
  */
-
+extern void show_regs(struct pt_regs *regs);
 int do_signal(struct pt_regs *regs, int syscall)
 {
 	struct ksignal ksig;

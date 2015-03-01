@@ -67,6 +67,7 @@ __ioremap(phys_addr_t addr, unsigned long size, pgprot_t prot)
 		if ((fixmaps_used + (size >> PAGE_SHIFT)) > FIX_N_IOREMAPS)
 			return NULL;
 		v = fix_to_virt(FIX_IOREMAP_BEGIN + fixmaps_used);
+		printk("SJK DEBUG: %s: v = %x\n", __func__, v);
 		fixmaps_used += (size >> PAGE_SHIFT);
 	}
 
